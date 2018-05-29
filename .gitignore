@@ -2,3 +2,6 @@ Log/
 addrs
 .gitignore
 wallet.dat
+ontology-test
+dbft_addrs
+vbft_addrs

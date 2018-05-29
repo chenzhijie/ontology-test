@@ -25,8 +25,7 @@ var accountBalance *ontSdkCom.Balance
 const (
 	LOCAL_RPC_ADDRESS = "http://localhost:30336"
 	DEF_WALLET_PWD    = "pwd" //default wallet password
-	// NODES_ADDRS_FILE  = "./vbft_addrs"
-	NODES_ADDRS_FILE = "./addrs"
+	NODES_ADDRS_FILE  = "./addrs"
 )
 
 const (
@@ -47,7 +46,7 @@ func main() {
 	for {
 		select {
 		case <-timer.C:
-			go transferOnt()
+			transferOnt()
 		case <-stopTimerCh:
 			log.Info("stop timer because no enough found")
 			timer.Stop()
