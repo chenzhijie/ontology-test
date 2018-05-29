@@ -3,9 +3,11 @@ package main
 import (
 	"io/ioutil"
 	"strings"
+	"sync"
 	"time"
 
 	ontSdk "github.com/ontio/ontology-go-sdk"
+	ontSdkCom "github.com/ontio/ontology-go-sdk/common"
 	"github.com/ontio/ontology/account"
 	"github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/log"
@@ -17,9 +19,14 @@ var toAddrs []common.Address
 var repeat int // repeat times for transfer to a address
 var noEnoughFound int
 var stopTimerCh chan bool
+var lock *sync.Mutex
+var accountBalance *ontSdkCom.Balance
 
 const (
 	LOCAL_RPC_ADDRESS = "http://localhost:30336"
+	DEF_WALLET_PWD    = "pwd" //default wallet password
+	// NODES_ADDRS_FILE  = "./vbft_addrs"
+	NODES_ADDRS_FILE = "./addrs"
 )
 
 const (
@@ -27,6 +34,7 @@ const (
 	TRANSFER_AMOUNT           = 1
 	ONT_TPS                   = 200 // transaction per second
 	NO_ENOUGH_FOUND_MAX_CHECK = 600 // max check 0 balance times, if reach, stop the timer
+
 )
 
 func main() {
@@ -53,6 +61,8 @@ FINISHED:
 func initVars() bool {
 	log.InitLog(0, log.PATH, log.Stdout)
 
+	lock = &sync.Mutex{}
+
 	toAddrs = getToAddrs()
 	if toAddrs == nil || len(toAddrs) == 0 {
 		log.Warnf("no transfer to address")
@@ -66,41 +76,72 @@ func initVars() bool {
 	sdk = ontSdk.NewOntologySdk()
 	sdk.Rpc.SetAddress(LOCAL_RPC_ADDRESS)
 
-	defAccount = account.NewAccount("")
+	clientImpl, err := account.NewClientImpl("wallet.dat")
+	if err != nil {
+		log.Errorf("import wallet failed")
+		return false
+	}
+
+	defAccount, err = clientImpl.GetDefaultAccount([]byte(DEF_WALLET_PWD))
+	if err != nil {
+		log.Errorf("client get default account failed")
+		return false
+	}
+	// defAccount = account.NewAccount("")
 	log.Infof("default account address:%v", defAccount.Address.ToBase58())
+	accountBalance, err = sdk.Rpc.GetBalance(defAccount.Address)
+	if err != nil {
+		log.Errorf("get balance failed, error:%s", err)
+		return false
+	}
+
 	return true
 }
 
 func transferOnt() {
-	bal, err := sdk.Rpc.GetBalance(defAccount.Address)
-	if err != nil {
-		log.Errorf("get balance failed, error:%s", err)
-	}
-	if bal.Ont == 0 || bal.Ont < TRANSFER_AMOUNT {
-		log.Warnf("no enough ont, balance:%d", bal.Ont)
-		noEnoughFound++
-		if noEnoughFound > NO_ENOUGH_FOUND_MAX_CHECK {
-			stopTimerCh <- true
-		}
+	if !isBalanceEnough() {
 		return
 	}
 	counter := 0
 	for _, toAddr := range toAddrs {
 		for i := 0; i < repeat; i++ {
-			txHash, err := sdk.Rpc.Transfer(0, 30000, "ONT", defAccount, toAddr, TRANSFER_AMOUNT)
+			if !isBalanceEnough() {
+				return
+			}
+			gasLimit := 30000 + i
+			txHash, err := sdk.Rpc.Transfer(0, uint64(gasLimit), "ONT", defAccount, toAddr, TRANSFER_AMOUNT)
 			if err != nil {
 				log.Errorf("transfer error:%s", err)
 				continue
 			}
 			log.Infof("%d: txHash:%x, to:%s", counter, txHash.ToArray(), toAddr.ToBase58())
 			counter++
+
+			lock.Lock()
+			accountBalance.Ont = accountBalance.Ont - TRANSFER_AMOUNT
+			lock.Unlock()
 		}
+	}
+}
+
+func isBalanceEnough() bool {
+	lock.Lock()
+	defer lock.Unlock()
+	if accountBalance.Ont == 0 || accountBalance.Ont < TRANSFER_AMOUNT {
+		log.Warnf("no enough ont, balance:%d", accountBalance.Ont)
+		noEnoughFound++
+		if noEnoughFound > NO_ENOUGH_FOUND_MAX_CHECK {
+			stopTimerCh <- true
+		}
+		return false
+	} else {
+		return true
 	}
 }
 
 // read address from file
 func getToAddrs() []common.Address {
-	file, err := ioutil.ReadFile("./addrs")
+	file, err := ioutil.ReadFile(NODES_ADDRS_FILE)
 	if err != nil {
 		return nil
 	}

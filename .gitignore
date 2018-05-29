@@ -1,2 +1,4 @@
 Log/
 addrs
+.gitignore
+wallet.dat
