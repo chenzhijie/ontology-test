@@ -1,16 +1,20 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"time"
+
 	"io/ioutil"
 	"strings"
 	"sync"
-	"time"
 
 	ontSdk "github.com/ontio/ontology-go-sdk"
 	ontSdkCom "github.com/ontio/ontology-go-sdk/common"
 	"github.com/ontio/ontology/account"
 	"github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/log"
+	"github.com/urfave/cli"
 )
 
 var defAccount *account.Account
@@ -22,21 +26,59 @@ var stopTimerCh chan bool
 var lock *sync.Mutex
 var accountBalance *ontSdkCom.Balance
 
+var ONT_TPS int // transaction per second
+var TRANSFER_AMOUNT uint64
+var LOCAL_RPC_ADDRESS string
+
 const (
-	LOCAL_RPC_ADDRESS = "http://localhost:30336"
-	DEF_WALLET_PWD    = "pwd" //default wallet password
-	NODES_ADDRS_FILE  = "./addrs"
+	DEF_WALLET_PWD   = "pwd" //default wallet password
+	NODES_ADDRS_FILE = "./addrs"
 )
 
 const (
-	TRANSFER_ONT_DURATION     = 1 // transfer ont duration in second
-	TRANSFER_AMOUNT           = 1
-	ONT_TPS                   = 200 // transaction per second
+	TRANSFER_ONT_DURATION     = 1   // transfer ont duration in second
 	NO_ENOUGH_FOUND_MAX_CHECK = 600 // max check 0 balance times, if reach, stop the timer
-
 )
 
 func main() {
+	log.InitLog(0, log.PATH, log.Stdout)
+	runApp()
+}
+
+func runApp() {
+	app := cli.NewApp()
+	app.Flags = []cli.Flag{
+		cli.IntFlag{
+			Name:  "tps",
+			Value: 100,
+			Usage: "transaction per second",
+		},
+		cli.IntFlag{
+			Name:  "amount",
+			Value: 1,
+			Usage: "transfer amount",
+		},
+		cli.IntFlag{
+			Name:  "rpcport",
+			Value: 30336,
+			Usage: "local rpc server port",
+		},
+	}
+	app.Action = func(c *cli.Context) error {
+		ONT_TPS = c.Int("tps")
+		TRANSFER_AMOUNT = c.Uint64("amount")
+		LOCAL_RPC_ADDRESS = fmt.Sprintf("http://localhost:%d", c.Int("rpcport"))
+		log.Infof("ont_tps:%d, amount:%d, rpc address:%s\n", ONT_TPS, TRANSFER_AMOUNT, LOCAL_RPC_ADDRESS)
+		start()
+		return nil
+	}
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func start() {
 	ret := initVars()
 	if !ret {
 		log.Error("init instance variable failed")
@@ -58,7 +100,6 @@ FINISHED:
 }
 
 func initVars() bool {
-	log.InitLog(0, log.PATH, log.Stdout)
 
 	lock = &sync.Mutex{}
 
@@ -113,11 +154,12 @@ func transferOnt() {
 				log.Errorf("transfer error:%s", err)
 				continue
 			}
-			log.Infof("%d: txHash:%x, to:%s", counter, txHash.ToArray(), toAddr.ToBase58())
+
 			counter++
 
 			lock.Lock()
 			accountBalance.Ont = accountBalance.Ont - TRANSFER_AMOUNT
+			log.Infof("%d: txHash:%x, to:%s, remain:%d", counter, txHash.ToArray(), toAddr.ToBase58(), accountBalance.Ont)
 			lock.Unlock()
 		}
 	}
