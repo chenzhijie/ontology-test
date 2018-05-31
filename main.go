@@ -42,6 +42,7 @@ const (
 
 func main() {
 	log.InitLog(0, log.PATH, log.Stdout)
+
 	runApp()
 }
 
