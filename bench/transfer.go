@@ -7,13 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ontio/ontology-crypto/keypair"
 	ontSdk "github.com/ontio/ontology-go-sdk"
 	ontSdkCom "github.com/ontio/ontology-go-sdk/common"
 	"github.com/ontio/ontology/account"
 	"github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/log"
-	"github.com/ontio/ontology/core/types"
 )
 
 const (
@@ -64,54 +62,6 @@ func (this *TestTransfer) Start() {
 	}
 FINISHED:
 	log.Info("finished")
-}
-
-func (this *TestTransfer) MultiTransfer() {
-
-	this.sdk = ontSdk.NewOntologySdk()
-	this.sdk.Rpc.SetAddress(this.rpcAddr)
-
-	wallets := []string{"./bench/wallet1.dat", "./bench/wallet2.dat"}
-	accs := make([]*account.Account, 0)
-	pks := make([]keypair.PublicKey, 0, len(wallets))
-	m := 2
-	for _, w := range wallets {
-		clientImpl, err := account.NewClientImpl(w)
-		if clientImpl == nil {
-			log.Errorf("clientImpl is nil")
-			return
-		}
-		if err != nil {
-			log.Errorf("import wallet failed")
-			return
-		}
-		a, err := clientImpl.GetDefaultAccount([]byte("pwd"))
-		if a == nil {
-			log.Errorf("acc is nil")
-			return
-		}
-		accs = append(accs, a)
-		pks = append(pks, a.PublicKey)
-		log.Infof("addr:%s", a.Address.ToBase58())
-	}
-	payer, err := types.AddressFromMultiPubKeys(pks, int(m))
-	if err != nil {
-		log.Errorf("AddressFromMultiPubKeyserr:%s", err)
-		return
-	}
-	balance, err := this.sdk.Rpc.GetBalance(payer)
-	log.Infof("payer:%s ont:%d", payer.ToBase58(), balance.Ont)
-	toAddr, err := common.AddressFromBase58("TA6rJ4vjeFmL8M7WGx6s4idEmbvDYLNjzc")
-	toBalance, err := this.sdk.Rpc.GetBalance(toAddr)
-	if err != nil {
-		log.Errorf("addr from base 58 err:%s", err)
-	}
-	log.Infof("to:%s ont:%d", toAddr.ToBase58(), toBalance.Ont)
-	txhash, err := this.sdk.Rpc.MultiSigTransfer(0, 30000, "ONT", accs, 2, toAddr, 10)
-	if err != nil {
-		log.Errorf("multi sig err:%s", err)
-	}
-	log.Infof("hash: %x", txhash)
 }
 
 func (this *TestTransfer) SetTps(tps int) {
