@@ -5,3 +5,6 @@ wallet.dat
 ontology-test
 dbft_addrs
 vbft_addrs
+txanalysis/
+addrs_backup
+bench/wallet*.dat
