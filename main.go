@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
+	"strings"
 	"sync"
 
 	"./analysis"
@@ -40,6 +43,29 @@ const (
 func main() {
 	log.InitLog(0, log.PATH, log.Stdout)
 	runApp()
+}
+
+func CheckHash(file string) {
+	con, err := ioutil.ReadFile(fmt.Sprintf("./Log/%s", file))
+	ret := strings.Split(string(con), "\n")
+	if err != nil {
+
+	}
+	var hashes []string
+	for _, line := range ret {
+		if strings.Index(line, "hash") != -1 {
+			hash := strings.Split(line, "hash: ")
+			hashes = append(hashes, hash[1])
+		}
+	}
+	for i, hash := range hashes {
+		for j, h := range hashes {
+			if hash == h && i != j {
+				fmt.Println(hash)
+			}
+		}
+	}
+	fmt.Printf("done:%d\n", len(hashes))
 }
 
 func runApp() {
