@@ -8,4 +8,6 @@ vbft_addrs
 txanalysis/
 addrs_backup
 bench/*wallet*.dat
+bench/invalidtx_wallets/
+bench/multisigtx_wallets/
 tx

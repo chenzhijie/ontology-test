@@ -59,5 +59,10 @@ func runApp() {
 	case cmd.CmdActionBatchAnalysis:
 		txn := analysis.SumUpTxs(c.GetAnalysisPath())
 		log.Infof("tx cnt:		%d", txn)
+	case cmd.CmdActionInvalidTransfer:
+		ty := c.GetInvalidTxType()
+		t := bench.NewTestTransfer()
+		t.SetRpc(c.GetRpc())
+		t.InvokeInvalidTransaction(bench.InvalidTxType(ty))
 	}
 }

@@ -16,9 +16,10 @@ type Cmd struct {
 }
 
 const (
-	CmdActionBatchTransfer CmdAction = 0
-	CmdActionBatchAnalysis           = 1
-	CmdActionMutilTransfer           = 2
+	CmdActionBatchTransfer   CmdAction = 0
+	CmdActionBatchAnalysis             = 1
+	CmdActionMutilTransfer             = 2
+	CmdActionInvalidTransfer           = 3
 )
 
 func NewCmd() *Cmd {
@@ -79,6 +80,28 @@ func (this *Cmd) Run() {
 				return nil
 			},
 		},
+		{
+			Name:    "invalidtx",
+			Aliases: []string{"intx"},
+			Usage:   "invalid transfer",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "rpc",
+					Value: "http://localhost:20336",
+					Usage: "local rpc server port",
+				},
+				cli.IntFlag{
+					Name:  "type",
+					Value: 0,
+					Usage: "invalid tx type",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				this.ctx = c
+				this.action = CmdActionInvalidTransfer
+				return nil
+			},
+		},
 	}
 
 	app.Action = func(c *cli.Context) error {
@@ -130,4 +153,12 @@ func (this *Cmd) GetAnalysisPath() string {
 	}
 	path := this.ctx.String("path")
 	return path
+}
+
+func (this *Cmd) GetInvalidTxType() int {
+	if this.ctx == nil {
+		return 0
+	}
+	txType := this.ctx.Int("type")
+	return txType
 }
