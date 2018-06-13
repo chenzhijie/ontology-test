@@ -7,4 +7,5 @@ dbft_addrs
 vbft_addrs
 txanalysis/
 addrs_backup
-bench/wallet*.dat
+bench/*wallet*.dat
+tx
