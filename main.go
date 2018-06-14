@@ -64,5 +64,9 @@ func runApp() {
 		t := bench.NewTestTransfer()
 		t.SetRpc(c.GetRpc())
 		t.InvokeInvalidTransaction(bench.InvalidTxType(ty))
+	case cmd.CmdActionSignatureService:
+		t := bench.NewTestTransfer()
+		t.SetRpc(c.GetRpc())
+		t.SignatureService()
 	}
 }

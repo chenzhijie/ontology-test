@@ -16,10 +16,11 @@ type Cmd struct {
 }
 
 const (
-	CmdActionBatchTransfer   CmdAction = 0
-	CmdActionBatchAnalysis             = 1
-	CmdActionMutilTransfer             = 2
-	CmdActionInvalidTransfer           = 3
+	CmdActionBatchTransfer    CmdAction = 0
+	CmdActionBatchAnalysis              = 1
+	CmdActionMutilTransfer              = 2
+	CmdActionInvalidTransfer            = 3
+	CmdActionSignatureService           = 4
 )
 
 func NewCmd() *Cmd {
@@ -99,6 +100,23 @@ func (this *Cmd) Run() {
 			Action: func(c *cli.Context) error {
 				this.ctx = c
 				this.action = CmdActionInvalidTransfer
+				return nil
+			},
+		},
+		{
+			Name:    "signature",
+			Aliases: []string{"sign"},
+			Usage:   "sign data",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "rpc",
+					Value: "http://localhost:20336",
+					Usage: "local rpc server port",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				this.ctx = c
+				this.action = CmdActionSignatureService
 				return nil
 			},
 		},
