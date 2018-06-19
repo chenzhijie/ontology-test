@@ -13,20 +13,32 @@ import (
 )
 
 const (
-	WALLET_RECEIVER_ACC = "./bench/wallet.dat"
+	WALLET_RECEIVER_ACC = "./bench/multisigtx_wallets/wallet.dat"
 	WALLET_RECEIVER_PWD = "pwd"
 )
 
-func (this *TestTransfer) MultiSigTransfer() {
+var allTxCnt int
 
-	m := 2
-	var wallets []string
+func (this *TestTransfer) MultiSigTransfer() {
+	// tps := 10
+	allTxCnt = 10000
+	m := 6
+	this.randomMultiSigTransfer(uint16(m), 10)
+	// for i := 0; i < tps/100; i++ {
+	// 	go func() {
+	// 		m := 30
+	// 		this.randomMultiSigTransfer(uint16(m), 100)
+	// 	}()
+	// }
+	// time.Sleep(time.Duration(10000) * time.Second)
+
+	// var wallets []string
 	// 2-2 transfer
-	// wallets = []string{"./bench/wallet1.dat", "./bench/wallet2.dat"}
-	// this.multiSigTransferW(wallets, uint16(m), 400)
+	// wallets = []string{"./bench/multisigtx_wallets/wallet1.dat", "./bench/multisigtx_wallets/wallet2.dat"}
+	// this.multiSigTransferW(wallets, uint16(m), 4000)
 	// // 2-3 transfer
-	wallets = []string{"./bench/wallet1.dat", "./bench/wallet2.dat", "./bench/wallet3.dat"}
-	this.multiSigTransferW(wallets, uint16(m), 200)
+	// wallets = []string{"./bench/multisigtx_wallets/wallet1.dat", "./bench/multisigtx_wallets/wallet2.dat", "./bench/multisigtx_wallets/wallet3.dat"}
+	// this.multiSigTransferW(wallets, uint16(m), 200)
 }
 
 func (this *TestTransfer) multiSigTransferW(wallets []string, m uint16, tps int) {
@@ -50,15 +62,14 @@ func (this *TestTransfer) multiSigTransferW(wallets []string, m uint16, tps int)
 	balance, err := utils.GetBalance(payer.ToBase58())
 	log.Infof("payer:%s ont:%s", payer.ToBase58(), balance.Ont)
 	payerOnt, err := strconv.Atoi(balance.Ont)
-	toAcc, err := loadWallet(WALLET_RECEIVER_ACC, WALLET_RECEIVER_PWD)
-	toAddr := toAcc.Address
-	toBalance, err := utils.GetBalance(toAddr.ToBase58())
+	toAddr := "AHiBGH8SU2BQtAqYKPMv9UcPBMCamQfbmR"
+	toBalance, err := utils.GetBalance(toAddr)
 	if err != nil {
 		log.Errorf("addr from base 58 err:%s", err)
 	}
-	log.Infof("to:%s ont:%s", toAddr.ToBase58(), toBalance.Ont)
+	log.Infof("to:%s ont:%s", toAddr, toBalance.Ont)
 	if tps == 1 {
-		txhash, err := transfer(0, 30000, accs, m, "ont", payer.ToBase58(), toAddr.ToBase58(), 10)
+		txhash, err := transfer(0, 30000, accs, m, "ont", payer.ToBase58(), toAddr, 10)
 		if err != nil {
 			log.Errorf("multi sig err:%s", err)
 		}
@@ -72,12 +83,16 @@ func (this *TestTransfer) multiSigTransferW(wallets []string, m uint16, tps int)
 		case <-timer.C:
 			txPerRoutine := 200
 			goRoutineCnt := tps / txPerRoutine
+			if tps < txPerRoutine {
+				goRoutineCnt = 1
+				txPerRoutine = tps
+			}
 			if payerOnt > 0 {
 				for i := 0; i < goRoutineCnt; i++ {
 					go func(id int) {
 						for j := 0; j < txPerRoutine; j++ {
 							gasLimit++
-							txhash, err := transfer(0, uint64(gasLimit), accs, m, "ont", payer.ToBase58(), toAddr.ToBase58(), 1)
+							txhash, err := transfer(0, uint64(gasLimit), accs, m, "ont", payer.ToBase58(), toAddr, 1)
 							log.Infof("gasLimit:%d, hash: %x", gasLimit, txhash)
 							if err != nil {
 								log.Errorf("multi sig err:%s", err)
@@ -89,6 +104,63 @@ func (this *TestTransfer) multiSigTransferW(wallets []string, m uint16, tps int)
 			}
 		}
 	}
+}
+
+func (this *TestTransfer) randomMultiSigTransfer(m uint16, tps int) {
+
+	toAddr := "AX5z2wHa6uhCa2PoUimPYLUTLZun76UtRm"
+	timer := time.NewTicker(time.Duration(time.Second))
+	for {
+		select {
+		case <-timer.C:
+			txPerRoutine := 200
+			goRoutineCnt := tps / txPerRoutine
+			if tps < txPerRoutine {
+				goRoutineCnt = 1
+				txPerRoutine = tps
+			}
+			if allTxCnt > 0 {
+				log.Infof("goRoutineCnt:%d txPerRoutine:%d", goRoutineCnt, txPerRoutine)
+				for i := 0; i < goRoutineCnt; i++ {
+					go func(id int) {
+						for j := 0; j < txPerRoutine; j++ {
+							pks, accs := genAccs(tps)
+							if pks == nil || accs == nil {
+								log.Errorf("signers is nil")
+								return
+							}
+							payer, _ := types.AddressFromMultiPubKeys(pks, int(m))
+							if len(accs) < int(m) {
+								log.Errorf("signers not enough")
+								return
+							}
+							txhash, err := transfer(0, uint64(30000), accs, m, "ont", payer.ToBase58(), toAddr, 0)
+							log.Infof(" hash: %x", txhash)
+							if err != nil {
+								log.Errorf("multi sig err:%s, payer:%s", err, payer.ToBase58())
+							}
+						}
+					}(i)
+				}
+				allTxCnt -= tps
+			}
+		}
+	}
+}
+
+func genAccs(cnt int) ([]keypair.PublicKey, []*account.Account) {
+	var pks []keypair.PublicKey
+	var accs []*account.Account
+	for i := 0; i < cnt; i++ {
+		a := account.NewAccount("")
+		if a == nil {
+			log.Errorf("account is nil")
+			return nil, nil
+		}
+		accs = append(accs, a)
+		pks = append(pks, a.PublicKey)
+	}
+	return pks, accs
 }
 
 func loadWallet(wallet, pwd string) (*account.Account, error) {

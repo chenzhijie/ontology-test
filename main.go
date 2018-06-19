@@ -5,10 +5,9 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"./analysis"
-	"./bench"
-	"./cmd"
-
+	"github.com/ontio/ontology-test/analysis"
+	"github.com/ontio/ontology-test/bench"
+	"github.com/ontio/ontology-test/cmd"
 	"github.com/ontio/ontology/common/log"
 )
 

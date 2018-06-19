@@ -11,3 +11,6 @@ bench/*wallet*.dat
 bench/invalidtx_wallets/
 bench/multisigtx_wallets/
 tx
+*.Log
+glide*
+vendor
