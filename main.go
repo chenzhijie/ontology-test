@@ -2,70 +2,109 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"strings"
 
-	"github.com/ontio/ontology-test/analysis"
-	"github.com/ontio/ontology-test/bench"
-	"github.com/ontio/ontology-test/cmd"
+	"github.com/ontio/ontology-crypto/keypair"
+	ont "github.com/ontio/ontology-go-sdk"
+	"github.com/ontio/ontology/cmd/utils"
+	"github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/log"
+	"github.com/ontio/ontology/core/types"
 )
 
-func main() {
-	log.InitLog(0, log.PATH, log.Stdout)
-	runApp()
-}
+func multiSigTransfer() {
+	m := 5
+	var wallets []string
+	wallets = []string{
+		"./wallet1.dat",
+		"./wallet2.dat",
+		"./wallet3.dat",
+		"./wallet4.dat",
+		"./wallet5.dat",
+		"./wallet6.dat",
+		"./wallet7.dat",
+	}
+	toAddr := "AYMnqA65pJFKAbbpD8hi5gdNDBmeFBy5hS"
 
-func CheckHash(file string) {
-	con, err := ioutil.ReadFile(fmt.Sprintf("./Log/%s", file))
-	ret := strings.Split(string(con), "\n")
+	accs := make([]*ont.Account, 0)
+	pks := make([]keypair.PublicKey, 0, len(wallets))
+	for _, w := range wallets {
+		a, err := loadWallet(w, "pwd")
+		if err != nil {
+			log.Errorf("load wallet error: %s", err)
+			return
+		}
+		accs = append(accs, a)
+		pks = append(pks, a.PublicKey)
+		log.Infof("addr:%s", a.Address.ToBase58())
+	}
+	payer, err := types.AddressFromMultiPubKeys(pks, int(m))
 	if err != nil {
+		log.Errorf("AddressFromMultiPubKeyserr:%s", err)
+		return
+	}
+	balance, err := utils.GetBalance(payer.ToBase58())
+	// if balance == nil {
+	// 	log.Infof("payer:%s ont:%d", payer.ToBase58(), 0)
+	// } else {
+	// 	log.Infof("payer:%s ont:%d", payer.ToBase58(), balance.Ont)
+	// }
+	// // payerOnt, err := strconv.Atoi(balance.Ont)
 
+	// toBalance, err := utils.GetBalance(toAddr)
+	// if err != nil {
+	// 	log.Errorf("addr from base 58 err:%s", err)
+	// }
+	// log.Infof("to:%s ont:%s, payerOnt:%d", toAddr, toBalance.Ont, payerOnt)
+
+	txhash, err := sdkMultiTransfer(0, 30000, accs, uint16(m), "ont", payer, toAddr, 200000000)
+	if err != nil {
+		log.Errorf("err:%s", err)
+		return
 	}
-	var hashes []string
-	for _, line := range ret {
-		if strings.Index(line, "hash") != -1 {
-			hash := strings.Split(line, "hash: ")
-			hashes = append(hashes, hash[1])
-		}
-	}
-	for i, hash := range hashes {
-		for j, h := range hashes {
-			if hash == h && i != j {
-				fmt.Println(hash)
-			}
-		}
-	}
-	fmt.Printf("done:%d\n", len(hashes))
+	log.Infof("hash: %x", txhash)
+
 }
 
-func runApp() {
-	c := cmd.NewCmd()
-	c.Run()
-	switch c.GetAction() {
-	case cmd.CmdActionBatchTransfer:
-		t := bench.NewTestTransfer()
-		t.SetTps(c.GetOntTPS())
-		t.SetAmount(c.GetAmount())
-		t.SetRpc(c.GetRpc())
-		t.Start()
-	case cmd.CmdActionMutilTransfer:
-		t := bench.NewTestTransfer()
-		t.SetTps(c.GetOntTPS())
-		t.SetAmount(c.GetAmount())
-		t.SetRpc(c.GetRpc())
-		t.MultiSigTransfer()
-	case cmd.CmdActionBatchAnalysis:
-		txn := analysis.SumUpTxs(c.GetAnalysisPath())
-		log.Infof("tx cnt:		%d", txn)
-	case cmd.CmdActionInvalidTransfer:
-		ty := c.GetInvalidTxType()
-		t := bench.NewTestTransfer()
-		t.SetRpc(c.GetRpc())
-		t.InvokeInvalidTransaction(bench.InvalidTxType(ty))
-	case cmd.CmdActionSignatureService:
-		t := bench.NewTestTransfer()
-		t.SetRpc(c.GetRpc())
-		t.SignatureService()
+func sdkMultiTransfer(gasPrice, gasLimit uint64, signers []*ont.Account, m uint16, asset string, from common.Address, to string, amount uint64) (string, error) {
+	pks := make([]keypair.PublicKey, 0, len(signers))
+	for _, signer := range signers {
+		pks = append(pks, signer.PublicKey)
 	}
+
+	sdk := ont.NewOntologySdk()
+
+	sdk.NewRpcClient().SetAddress("http://10.0.1.128:20336")
+
+	mutableTx, err := utils.TransferTx(0, gasLimit, asset, from.ToBase58(), to, amount)
+	if err != nil {
+		return "", err
+	}
+
+	for _, signer := range signers {
+		sdk.MultiSignToTransaction(mutableTx, m, pks, signer)
+		fmt.Printf("sign\n")
+	}
+	hash, err := sdk.SendTransaction(mutableTx)
+	if err != nil {
+		return "", err
+	}
+	return hash.ToHexString(), nil
+}
+
+func loadWallet(wallet, pwd string) (*ont.Account, error) {
+	clientImpl, err := ont.OpenWallet(wallet)
+	if clientImpl == nil {
+		log.Errorf("clientImpl is nil")
+		return nil, err
+	}
+	a, err := clientImpl.GetDefaultAccount([]byte(pwd))
+	if a == nil {
+		log.Errorf("acc is nil")
+		return nil, err
+	}
+	return a, nil
+}
+
+func main() {
+	multiSigTransfer()
 }
